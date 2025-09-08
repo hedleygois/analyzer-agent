@@ -1,0 +1,31 @@
+{
+  "server": {
+    "host": "localhost",
+    "port": 8080
+  },
+  "email": {
+    "smtp_host": "smtp.gmail.com",
+    "smtp_port": 587,
+    "username": "your-email@gmail.com",
+    "password": "your-app-password",
+    "from_email": "your-email@gmail.com",
+    "to_emails": ["recipient@example.com"],
+    "subject": "🔥 Price Alert: Great Deal Found!"
+  },
+  "scraper": {
+    "websocket_url": "ws://localhost:8081/ws",
+    "timeout": "30s",
+    "retry_delay": "5s",
+    "max_retries": 3
+  },
+  "analysis": {
+    "discount_threshold": 0.1,
+    "analysis_period": "720h",
+    "check_interval": "12h"
+  },
+  "websocket": {
+    "handshake_timeout": "10s",
+    "read_buffer_size": 1024,
+    "write_buffer_size": 1024
+  }
+}
