@@ -1,6 +1,6 @@
-# Price Analyzer Agent
+# Price Analyzer Agent (Kotlin rewrite)
 
-An AI agent that communicates with a scraper agent via JSON-RPC over WebSockets to analyze product price trends and send email alerts for significant discounts (>10% below average price).
+Kotlin CLI agent that communicates with a scraper via JSON-RPC over WebSockets to analyze product price trends using OpenAI and send email alerts for significant discounts.
 
 ## Features
 
@@ -8,7 +8,7 @@ An AI agent that communicates with a scraper agent via JSON-RPC over WebSockets 
 - **Price Trend Analysis**: Analyzes 30-day price history to detect significant discounts
 - **Email Notifications**: Sends HTML email alerts for good deals with detailed price information
 - **Configurable Thresholds**: Customizable discount threshold (default: 10%)
-- **HTTP API**: RESTful API for status monitoring and control
+- **OpenAI-driven Analysis**: Uses LLM to evaluate deal quality
 - **Robust Error Handling**: Retry logic, connection recovery, and comprehensive error tracking
 - **Real-time Monitoring**: Periodic analysis with configurable intervals
 
@@ -32,24 +32,18 @@ An AI agent that communicates with a scraper agent via JSON-RPC over WebSockets 
 
 ```
 analyzer-agent/
-├── cmd/analyzer/           # Application entry point
-│   └── main.go
-├── internal/
-│   ├── agent/              # Main agent logic and price analyzer
-│   │   ├── agent.go        # Main agent orchestrator
-│   │   └── analyzer.go     # Price analysis engine
-│   ├── email/              # Email notification service
-│   │   └── service.go
-│   ├── models/             # Data models and JSON-RPC types
-│   │   └── models.go
-│   └── websocket/          # WebSocket client for JSON-RPC
-│       └── client.go
-├── pkg/
-│   └── config/             # Configuration management
-│       └── config.go
-├── config.json             # Sample configuration
-├── go.mod
-├── go.sum
+├── kotlin/                     # Kotlin rewrite
+│   ├── build.gradle.kts
+│   ├── settings.gradle.kts
+│   └── src/main/kotlin/
+│       ├── app/Main.kt         # Application entry point
+│       ├── config/Config.kt    # Configuration management
+│       ├── model/Models.kt     # Data models and JSON-RPC types
+│       ├── net/WsClient.kt     # WebSocket client for JSON-RPC
+│       ├── analysis/LLM.kt     # OpenAI-driven analyzer
+│       ├── email/Email.kt      # Email service
+│       └── agent/Agent.kt      # Orchestrator
+├── config.json                 # Sample configuration
 └── README.md
 ```
 
@@ -63,7 +57,7 @@ analyzer-agent/
 
 2. **Install dependencies**:
    ```bash
-   go mod tidy
+   cd kotlin && ./gradlew build
    ```
 
 3. **Configure the application**:
@@ -71,7 +65,7 @@ analyzer-agent/
 
 4. **Build the application**:
    ```bash
-   go build -o analyzer ./cmd/analyzer
+   cd kotlin && ./gradlew shadowJar
    ```
 
 ## Configuration
@@ -80,9 +74,9 @@ Edit the `config.json` file:
 
 ```json
 {
-  "server": {
-    "host": "localhost",
-    "port": 8080
+  "openai": {
+    "api_key": "sk-...",
+    "model": "gpt-4o-mini"
   },
   "email": {
     "smtp_host": "smtp.gmail.com",
@@ -100,7 +94,7 @@ Edit the `config.json` file:
     "max_retries": 3
   },
   "analysis": {
-    "discount_threshold": 0.1,      # 10% discount threshold
+    "discount_threshold": 0.1,      # 10% discount threshold (used as hint)
     "analysis_period": "720h",      # 30 days
     "check_interval": "1h"          # Check every hour
   },
@@ -184,33 +178,7 @@ Expected response:
 
 ### HTTP API Endpoints
 
-The application provides a REST API for monitoring and control:
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/` | GET | Service information and available endpoints |
-| `/status` | GET | Get current agent status |
-| `/health` | GET | Health check |
-| `/analyze` | POST | Force immediate analysis cycle |
-| `/report` | GET | Get detailed analysis report |
-| `/reconnect` | POST | Reconnect to scraper agent |
-| `/clear-errors` | POST | Clear error log |
-
-### Example API Calls
-
-```bash
-# Check status
-curl http://localhost:8080/status
-
-# Force analysis
-curl -X POST http://localhost:8080/analyze
-
-# Get analysis report
-curl http://localhost:8080/report
-
-# Health check
-curl http://localhost:8080/health
-```
+Removed. The agent now runs as a headless CLI process.
 
 ## How It Works
 
