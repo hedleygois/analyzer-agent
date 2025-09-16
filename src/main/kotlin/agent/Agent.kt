@@ -3,17 +3,15 @@ package agent
 import analysis.LLMAnalyzer
 import config.Config
 import email.EmailService
-import model.Product
 import net.WsClient
-import java.time.Duration
-import java.util.Timer
-import java.util.TimerTask
+import java.util.*
 
 class Agent(private val cfg: Config) {
     private val conn = cfg.mcp ?: cfg.scraper ?: error("Missing MCP/scraper configuration")
     private val ws = WsClient(
         url = conn.webSocketUrl,
-        timeoutSeconds = conn.timeoutDuration().seconds
+        timeoutSeconds = conn.timeoutDuration().seconds,
+        openAIConfig = cfg.openai
     )
     private val llm = LLMAnalyzer(cfg.openai)
     private val email = EmailService(cfg.email)
@@ -40,7 +38,7 @@ class Agent(private val cfg: Config) {
     }
 
     private fun runAnalysis() {
-        val days = (cfg.analysis.analysisDuration().toHours() / 24).toInt().coerceAtLeast(1)
+        val days = (cfg.analysis.analysisDuration().toHours() / 24).toInt().coerceAtLeast(90)
         val products = ws.getProducts(days).join().products
         val analyses = llm.analyze(products)
         val goodDeals = analyses.filter { it.isGoodDeal }

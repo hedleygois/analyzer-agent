@@ -11,6 +11,7 @@ data class Product(
     val store: String? = null,
     val category: String? = null,
     val price: Double,
+    @SerialName("scraped_at") val scrapedAt: String? = null,
 )
 
 
