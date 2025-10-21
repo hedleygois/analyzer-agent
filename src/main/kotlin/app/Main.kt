@@ -6,7 +6,7 @@ import java.io.File
 import kotlin.system.exitProcess
 
 fun main(args: Array<String>) {
-    val configPath = if (args.isNotEmpty()) args[0] else File("../config.json").absolutePath
+    val configPath = if (args.isNotEmpty()) args[0] else File("config.json").absolutePath
     val cfg = try {
         Config.load(configPath)
     } catch (e: Exception) {
