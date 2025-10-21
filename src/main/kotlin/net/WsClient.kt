@@ -122,8 +122,8 @@ class WsClient(
         val user = buildString {
             appendLine("Schema:\n${schemaText}")
             appendLine()
-            appendLine("Goal: Return recent products with their latest scrape timestamps within the last ${daysBack} days. Include columns: id, name, url, store_id, item_type, price, scraped_at (ISO-8601). Order by scraped_at desc and limit 100.")
-            appendLine("Rules: Return ONLY the SQL text. Use proper joins. If a latest timestamp is available, use MAX(timestamp) as scraped_at.")
+            appendLine("Goal: Return recent products with their latest scrape timestamps within the last ${daysBack} days. Include columns: id, name, url, store_id, item_type, price, scraped_at (ISO-8601). Order by scraped_at desc and limit 10.")
+            appendLine("Rules: Return ONLY the SQL text. Use proper joins. If a latest timestamp is available, use MAX(timestamp) as scraped_at. Do not add ; at the end of the query.")
         }
         val client = openAI ?: return defaultSql(daysBack)
         return try {
