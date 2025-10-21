@@ -4,6 +4,7 @@ import config.OpenAIConfig
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.serializer
 import model.PriceAnalysis
 import model.Product
 import model.MarketTrends
@@ -17,6 +18,8 @@ import kotlinx.serialization.json.*
 import java.time.Instant
 import java.io.File
 import java.nio.file.Paths
+import io.ktor.client.*
+import io.ktor.client.plugins.*
 
 @Serializable
 data class OpenAIResponseWrapper(val dummy: String = "")
@@ -24,7 +27,15 @@ data class OpenAIResponseWrapper(val dummy: String = "")
 
 class LLMAnalyzer(private val cfg: OpenAIConfig) {
 	private val json = Json { ignoreUnknownKeys = true }
-	private val client by lazy { OpenAI(token = cfg.apiKey) }
+	private val client by lazy { 
+		OpenAI(token = cfg.apiKey) {
+			install(HttpTimeout) {
+				requestTimeoutMillis = 120_000_000 // 120 seconds
+				connectTimeoutMillis = 30_000 // 30 seconds for connection
+				socketTimeoutMillis = 120_000 // 120 seconds for socket
+			}
+		}
+	}
 
 	fun analyze(products: List<Product>): List<PriceAnalysis> = runBlocking {
         if (products.isEmpty()) return@runBlocking emptyList()
@@ -35,7 +46,8 @@ class LLMAnalyzer(private val cfg: OpenAIConfig) {
             messages = listOf(
                 ChatMessage(role = ChatRole.System, content = SYSTEM_PROMPT),
                 ChatMessage(role = ChatRole.User, content = prompt),
-            )
+            ),
+			maxTokens = 5000,
         )
         val resp = client.chatCompletion(req)
         val content = resp.choices.firstOrNull()?.message?.content.orEmpty()
@@ -59,88 +71,48 @@ class LLMAnalyzer(private val cfg: OpenAIConfig) {
 		return sb.toString()
 	}
 
-	/**
-	 * Generate insights about product data
-	 */
-	suspend fun generateInsights(products: List<Product>): InsightResult {
-		if (products.isEmpty()) return InsightResult(error = "No products to analyze")
+	fun generateInsights(products: List<Product>): InsightResult = runBlocking {
+		if (products.isEmpty()) return@runBlocking InsightResult(error = "No products to analyze")
 		
 		val prompt = buildInsightsPrompt(products)
 		val req = ChatCompletionRequest(
 			model = ModelId(cfg.model),
 			temperature = 0.3,
-			maxTokens = 1000,
+			maxTokens = 5000,
 			messages = listOf(
 				ChatMessage(role = ChatRole.User, content = prompt)
 			)
 		)
 		
-		return try {
-			val response = client.chatCompletion(req)
-			val content = response.choices.firstOrNull()?.message?.content.orEmpty()
-			logResponse("generateInsights", response, null)
-			
-			println("🤖 AI Insights Response: $content")
-			
-			json.decodeFromString<InsightResult>(LLMEvaluator.stripCodeFences(content))
-		} catch (error: Exception) {
-			logResponse("generateInsights", null, error)
-			println("❌ Failed to generate insights: ${error.message}")
-			InsightResult(error = "Failed to generate insights")
-		}
+		val response = client.chatCompletion(req)
+		val content = response.choices.firstOrNull()?.message?.content.orEmpty()
+		json.decodeFromString<InsightResult>(LLMEvaluator.stripCodeFences(content))
 	}
 	
-	/**
-	 * Analyze market trends from product data
-	 */
-	suspend fun analyzeMarketTrends(products: List<Product>): MarketTrends {
-		if (products.isEmpty()) return MarketTrends(error = "No products to analyze")
+	fun analyzeMarketTrends(products: List<Product>): MarketTrends = runBlocking {
+		if (products.isEmpty()) return@runBlocking MarketTrends(error = "No products to analyze")
 		
 		val prompt = createMarketTrendsPrompt(products)
 		val req = ChatCompletionRequest(
 			model = ModelId(cfg.model),
 			temperature = 0.2,
-			maxTokens = 32768,
+			maxTokens = 5000,
 			messages = listOf(
 				ChatMessage(role = ChatRole.User, content = prompt)
 			)
 		)
 		
-		return try {
-			val response = client.chatCompletion(req)
-			val content = response.choices.firstOrNull()?.message?.content.orEmpty()
-			logResponse("analyzeMarketTrends", response, null)
-			
-			println("🤖 Market Trends Analysis Response: $content")
-			
-			json.decodeFromString<MarketTrends>(LLMEvaluator.stripCodeFences(content))
-		} catch (error: Exception) {
-			logResponse("analyzeMarketTrends", null, error)
-			println("❌ Failed to analyze market trends: ${error.message}")
-			MarketTrends(error = "Failed to analyze market trends")
-		}
+		val response = client.chatCompletion(req)
+		val content = response.choices.firstOrNull()?.message?.content.orEmpty()
+		json.decodeFromString<MarketTrends>(LLMEvaluator.stripCodeFences(content))
 	}
 	
-	/**
-	 * Log market trends analysis to file
-	 */
-	fun logMarketTrends(marketTrends: MarketTrends) {
-		val timestamp = Instant.now().toString()
-		val logContent = formatMarketTrendsLog(timestamp, marketTrends)
-		val marketTrendsLogPath = getMarketTrendsLogFilePath()
-		
-		try {
-			File(marketTrendsLogPath).appendText(logContent)
-		} catch (error: Exception) {
-			println("❌ Failed to log market trends: ${error.message}")
-		}
-	}
 	
 	private fun buildInsightsPrompt(products: List<Product>): String {
 		return """
 			Analyze this product data and provide insights:
 			
-			Products: ${json.encodeToString(Product.serializer().list, products)}
+			Products: ${json.encodeToString(serializer<List<Product>>(), products)}
 			
 			Provide insights on:
 			1. Price trends and ranges
@@ -158,7 +130,7 @@ class LLMAnalyzer(private val cfg: OpenAIConfig) {
 		return """
 			Analyze market trends from this product data:
 			
-			${json.encodeToString(Product.serializer().list, products)}
+			${json.encodeToString(serializer<List<Product>>(), products)}
 			
 			Provide analysis on:
 			1. Price trends and market positioning
@@ -171,71 +143,6 @@ class LLMAnalyzer(private val cfg: OpenAIConfig) {
 			
 			Return as structured JSON analysis. Make sure to format string correctly. Always wrap key value within double quotes.
 		""".trimIndent()
-	}
-	
-	private fun logResponse(method: String, response: Any?, error: Exception?) {
-		val timestamp = Instant.now().toString()
-		val logContent = formatLogEntry(timestamp, method, response, error)
-		val logFilePath = getLogFilePath()
-		
-		try {
-			File(logFilePath).appendText(logContent)
-		} catch (e: Exception) {
-			println("❌ Failed to log response: ${e.message}")
-		}
-	}
-	
-	private fun formatLogEntry(timestamp: String, method: String, response: Any?, error: Exception?): String {
-		val separator = "=".repeat(80)
-		
-		return buildString {
-			appendLine(separator)
-			appendLine("TIMESTAMP: $timestamp")
-			appendLine("METHOD: $method")
-			appendLine(separator)
-			
-			if (error != null) {
-				appendLine("❌ ERROR:")
-				appendLine("Error Message: ${error.message ?: "Unknown error"}")
-				appendLine("Error Stack: ${error.stackTraceToString()}")
-			} else {
-				appendLine("✅ SUCCESS:")
-				val responseContent = response?.toString() ?: "No content"
-				appendLine("Response Content: $responseContent")
-			}
-			
-			appendLine(separator)
-			appendLine()
-		}
-	}
-	
-	private fun formatMarketTrendsLog(timestamp: String, marketTrends: MarketTrends): String {
-		val separator = "=".repeat(80)
-		
-		return buildString {
-			appendLine(separator)
-			appendLine("MARKET TRENDS ANALYSIS")
-			appendLine("TIMESTAMP: $timestamp")
-			appendLine(separator)
-			
-			if (marketTrends.error != null) {
-				appendLine("❌ ERROR: ${marketTrends.error}")
-			} else {
-				appendLine("📊 MARKET TRENDS DATA:")
-				appendLine(json.encodeToString(MarketTrends.serializer(), marketTrends))
-			}
-			
-			appendLine(separator)
-			appendLine()
-		}
-	}
-	
-	private fun getLogFilePath(): String {
-		return Paths.get(System.getProperty("user.dir"), "openai_responses.log").toString()
-	}
-	
-	private fun getMarketTrendsLogFilePath(): String {
-		return Paths.get(System.getProperty("user.dir"), "market_trends.log").toString()
 	}
 
 	companion object {
@@ -293,7 +200,7 @@ object LLMEvaluator {
 		}
 	}
 
-	private fun stripCodeFences(text: String): String {
+	fun stripCodeFences(text: String): String {
 		var t = text.trim()
 		if (t.startsWith("```")) {
 			// Remove opening fence and optional language tag
