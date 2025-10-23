@@ -52,13 +52,9 @@ class Agent(private val cfg: Config) {
         val marketTrends = llm.analyzeMarketTrends(products)
         logger.log(Level.FINE, "Market Trends: ${if (marketTrends.error != null) "Error: ${marketTrends.error}" else "Success"}")
         
-        val insights = llm.generateInsights(products)
-        logger.log(Level.FINE, "Insights: ${if (insights.error != null) "Error: ${insights.error}" else "Success"}")
-        
         if (goodDeals.isNotEmpty()) {
-            val tabularReport = ReportGenerator.generateTabularReport(goodDeals, insights, marketTrends)
-            // logger.log(Level.FINE, "📊 TABULAR REPORT:\n$tabularReport")
-            println(tabularReport)
+            val tabularReport = ReportGenerator.generateTabularReport(goodDeals, marketTrends)
+            logger.log(Level.FINE, "📊 TABULAR REPORT:\n$tabularReport")
             
             val html = buildReport(goodDeals)
             email.send(cfg.email.subject, html)
