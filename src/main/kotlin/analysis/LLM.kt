@@ -71,24 +71,6 @@ class LLMAnalyzer(private val cfg: OpenAIConfig) {
 		return sb.toString()
 	}
 
-	fun generateInsights(products: List<Product>): InsightResult = runBlocking {
-		if (products.isEmpty()) return@runBlocking InsightResult(error = "No products to analyze")
-		
-		val prompt = buildInsightsPrompt(products)
-		val req = ChatCompletionRequest(
-			model = ModelId(cfg.model),
-			temperature = 0.3,
-			maxTokens = 5000,
-			messages = listOf(
-				ChatMessage(role = ChatRole.User, content = prompt)
-			)
-		)
-		
-		val response = client.chatCompletion(req)
-		val content = response.choices.firstOrNull()?.message?.content.orEmpty()
-		json.decodeFromString<InsightResult>(LLMEvaluator.stripCodeFences(content))
-	}
-	
 	fun analyzeMarketTrends(products: List<Product>): MarketTrends = runBlocking {
 		if (products.isEmpty()) return@runBlocking MarketTrends(error = "No products to analyze")
 		
@@ -105,25 +87,6 @@ class LLMAnalyzer(private val cfg: OpenAIConfig) {
 		val response = client.chatCompletion(req)
 		val content = response.choices.firstOrNull()?.message?.content.orEmpty()
 		json.decodeFromString<MarketTrends>(LLMEvaluator.stripCodeFences(content))
-	}
-	
-	
-	private fun buildInsightsPrompt(products: List<Product>): String {
-		return """
-			Analyze this product data and provide insights:
-			
-			Products: ${json.encodeToString(serializer<List<Product>>(), products)}
-			
-			Provide insights on:
-			1. Price trends and ranges
-			2. Store availability and distribution
-			3. Product category distribution
-			4. Data quality assessment
-			5. Market observations
-			6. Potential opportunities or anomalies
-			
-			Return as JSON with structured insights. Always wrap key value within double quotes.
-		""".trimIndent()
 	}
 	
 	private fun createMarketTrendsPrompt(products: List<Product>): String {
