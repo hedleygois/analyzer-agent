@@ -8,7 +8,6 @@ object ReportGenerator {
 	
 	fun generateTabularReport(
 		goodDeals: List<PriceAnalysis>,
-		insights: InsightResult,
 		marketTrends: MarketTrends
 	): String {
 		val sb = StringBuilder()
@@ -41,37 +40,68 @@ object ReportGenerator {
 		if (marketTrends.error != null) {
 			sb.appendLine("❌ Error: ${marketTrends.error}")
 		} else {
-			marketTrends.insights?.let { sb.appendLine("📊 Insights: $it") }
-			marketTrends.recommendations?.let { 
-				sb.appendLine("💡 Recommendations:")
-				it.forEach { rec -> sb.appendLine("  • $rec") }
-			}
-			marketTrends.priceAnalysis?.let { price ->
-				sb.appendLine("💰 Price Analysis:")
-				price.averageGPUPrice?.let { sb.appendLine("  • Average GPU Price: $it") }
-				price.averageCPUPrice?.let { sb.appendLine("  • Average CPU Price: $it") }
-				price.priceRange?.let { sb.appendLine("  • Price Range: ${it.min} - ${it.max}") }
-			}
-			marketTrends.storeAnalysis?.let { store ->
-				sb.appendLine("🏪 Store Analysis:")
-				store.mostExpensive?.let { sb.appendLine("  • Most Expensive: $it") }
-				store.mostAffordable?.let { sb.appendLine("  • Most Affordable: $it") }
+			marketTrends.insights?.let { insights ->
+
+				insights.priceTrendsAndRanges?.let { priceTrends ->
+					sb.appendLine("💰 Price Trends and Ranges:")
+					priceTrends.lowestPrice?.let { sb.appendLine("  • Lowest Price: $it") }
+					priceTrends.highestPrice?.let { sb.appendLine("  • Highest Price: $it") }
+					priceTrends.averagePrice?.let { sb.appendLine("  • Average Price: $it") }
+					priceTrends.priceRange?.let { sb.appendLine("  • Price Range: $it") }
+					priceTrends.notablePricePoints?.let { points ->
+						sb.appendLine("  • Notable Price Points:")
+						points.entryLevel?.let { sb.appendLine("    - Entry Level: $it") }
+						points.midRange?.let { sb.appendLine("    - Mid Range: $it") }
+						points.highEnd?.let { sb.appendLine("    - High End: $it") }
+					}
+				}
+				
+				insights.storeAvailabilityAndDistribution?.let { storeDist ->
+					sb.appendLine("🏪 Store Availability and Distribution:")
+					storeDist.store?.let { sb.appendLine("  • Store: $it") }
+					storeDist.totalProducts?.let { sb.appendLine("  • Total Products: $it") }
+					storeDist.productDistribution?.let { dist ->
+						dist.availableProducts?.let { sb.appendLine("  • Available Products: $it") }
+						dist.outOfStock?.let { sb.appendLine("  • Out of Stock: $it") }
+					}
+				}
+				
+				insights.productCategoryDistribution?.let { categoryDist ->
+					sb.appendLine("📦 Product Category Distribution:")
+					categoryDist.category?.let { sb.appendLine("  • Category: $it") }
+					categoryDist.totalProductsInCategory?.let { sb.appendLine("  • Total Products in Category: $it") }
+					categoryDist.categoryPercentage?.let { sb.appendLine("  • Category Percentage: $it") }
+				}
+		
+				insights.dataQualityAssessment?.let { dataQuality ->
+					sb.appendLine("🔍 Data Quality Assessment:")
+					dataQuality.dataFreshness?.let { sb.appendLine("  • Data Freshness: $it") }
+					dataQuality.urlValidity?.let { sb.appendLine("  • URL Validity: $it") }
+					dataQuality.productIds?.let { sb.appendLine("  • Product IDs: $it") }
+					dataQuality.priceFormat?.let { sb.appendLine("  • Price Format: $it") }
+				}
+				
+				insights.marketObservations?.let { observations ->
+					sb.appendLine("📊 Market Observations:")
+					observations.highDemand?.let { sb.appendLine("  • High Demand: $it") }
+					observations.premiumProducts?.let { sb.appendLine("  • Premium Products: $it") }
+					observations.entryLevelOptions?.let { sb.appendLine("  • Entry Level Options: $it") }
+				}
+				
+				insights.potentialOpportunitiesOrAnomalies?.let { opportunities ->
+					sb.appendLine("💡 Potential Opportunities or Anomalies:")
+					opportunities.opportunities?.let { opps ->
+						opps.entryLevelGpu?.let { sb.appendLine("  • Entry Level GPU: $it") }
+						opps.bundledOffers?.let { sb.appendLine("  • Bundled Offers: $it") }
+					}
+					opportunities.anomalies?.let { anomalies ->
+						anomalies.priceDiscrepancy?.let { sb.appendLine("  • Price Discrepancy: $it") }
+					}
+				}
 			}
 		}
 		
 		sb.appendLine()
-		
-		sb.appendLine("GENERAL INSIGHTS:")
-		sb.appendLine("-".repeat(40))
-		if (insights.error != null) {
-			sb.appendLine("❌ Error: ${insights.error}")
-		} else {
-			insights.insights?.let { sb.appendLine("📈 Insights: $it") }
-			insights.recommendations?.let { sb.appendLine("💡 Recommendations: $it") }
-		}
-		
-		sb.appendLine()
-		sb.appendLine("=".repeat(120))
 		
 		return sb.toString()
 	}
