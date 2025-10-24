@@ -28,4 +28,4 @@ dependencies {
 
 application { mainClass.set("app.MainKt") }
 
-kotlin { jvmToolchain(17) }
+kotlin { jvmToolchain(21) }

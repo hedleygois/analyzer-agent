@@ -1,12 +1,16 @@
 package agent
 
 import analysis.LLMAnalyzer
+import analysis.ReportGenerator
 import config.Config
 import email.EmailService
 import net.WsClient
 import java.util.*
+import java.util.logging.Logger
+import java.util.logging.Level
 
 class Agent(private val cfg: Config) {
+    private val logger = Logger.getLogger(Agent::class.java.name)
     private val conn = cfg.mcp ?: cfg.scraper ?: error("Missing MCP/scraper configuration")
     private val ws = WsClient(
         url = conn.webSocketUrl,
@@ -40,9 +44,18 @@ class Agent(private val cfg: Config) {
     private fun runAnalysis() {
         val days = (cfg.analysis.analysisDuration().toHours() / 24).toInt().coerceAtLeast(90)
         val products = ws.getProducts(days).join().products
+        logger.log(Level.FINE, "Products: ${products.size} - ${products.joinToString { it.name }}")
         val analyses = llm.analyze(products)
+        logger.log(Level.FINE, "Analyses: ${analyses.size} - ${analyses.joinToString { it.product.name }}")
         val goodDeals = analyses.filter { it.isGoodDeal }
+        logger.log(Level.FINE, "Good Deals: ${goodDeals.size} - ${goodDeals.joinToString { it.product.name }}")
+        val marketTrends = llm.analyzeMarketTrends(products)
+        logger.log(Level.FINE, "Market Trends: ${if (marketTrends.error != null) "Error: ${marketTrends.error}" else "Success"}")
+        
         if (goodDeals.isNotEmpty()) {
+            val tabularReport = ReportGenerator.generateTabularReport(goodDeals, marketTrends)
+            logger.log(Level.FINE, "📊 TABULAR REPORT:\n$tabularReport")
+            
             val html = buildReport(goodDeals)
             email.send(cfg.email.subject, html)
         }

@@ -4,8 +4,11 @@ import config.OpenAIConfig
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.serializer
 import model.PriceAnalysis
 import model.Product
+import model.MarketTrends
+import model.InsightResult
 import com.aallam.openai.client.OpenAI
 import com.aallam.openai.api.chat.ChatCompletionRequest
 import com.aallam.openai.api.chat.ChatMessage
@@ -13,6 +16,10 @@ import com.aallam.openai.api.model.ModelId
 import com.aallam.openai.api.chat.ChatRole
 import kotlinx.serialization.json.*
 import java.time.Instant
+import java.io.File
+import java.nio.file.Paths
+import io.ktor.client.*
+import io.ktor.client.plugins.*
 
 @Serializable
 data class OpenAIResponseWrapper(val dummy: String = "")
@@ -20,7 +27,15 @@ data class OpenAIResponseWrapper(val dummy: String = "")
 
 class LLMAnalyzer(private val cfg: OpenAIConfig) {
 	private val json = Json { ignoreUnknownKeys = true }
-	private val client by lazy { OpenAI(token = cfg.apiKey) }
+	private val client by lazy { 
+		OpenAI(token = cfg.apiKey) {
+			install(HttpTimeout) {
+				requestTimeoutMillis = 120_000_000 // 120 seconds
+				connectTimeoutMillis = 30_000 // 30 seconds for connection
+				socketTimeoutMillis = 120_000 // 120 seconds for socket
+			}
+		}
+	}
 
 	fun analyze(products: List<Product>): List<PriceAnalysis> = runBlocking {
         if (products.isEmpty()) return@runBlocking emptyList()
@@ -31,7 +46,8 @@ class LLMAnalyzer(private val cfg: OpenAIConfig) {
             messages = listOf(
                 ChatMessage(role = ChatRole.System, content = SYSTEM_PROMPT),
                 ChatMessage(role = ChatRole.User, content = prompt),
-            )
+            ),
+			maxTokens = 5000,
         )
         val resp = client.chatCompletion(req)
         val content = resp.choices.firstOrNull()?.message?.content.orEmpty()
@@ -53,6 +69,43 @@ class LLMAnalyzer(private val cfg: OpenAIConfig) {
 			sb.append(" | price=").append(p.price).append(" ")
 		}
 		return sb.toString()
+	}
+
+	fun analyzeMarketTrends(products: List<Product>): MarketTrends = runBlocking {
+		if (products.isEmpty()) return@runBlocking MarketTrends(error = "No products to analyze")
+		
+		val prompt = createMarketTrendsPrompt(products)
+		val req = ChatCompletionRequest(
+			model = ModelId(cfg.model),
+			temperature = 0.2,
+			maxTokens = 5000,
+			messages = listOf(
+				ChatMessage(role = ChatRole.User, content = prompt)
+			)
+		)
+		
+		val response = client.chatCompletion(req)
+		val content = response.choices.firstOrNull()?.message?.content.orEmpty()
+		json.decodeFromString<MarketTrends>(LLMEvaluator.stripCodeFences(content))
+	}
+	
+	private fun createMarketTrendsPrompt(products: List<Product>): String {
+		return """
+			Analyze market trends from this product data:
+			
+			${json.encodeToString(serializer<List<Product>>(), products)}
+			
+			Provide analysis on:
+			1. Price trends and market positioning
+			2. Brand distribution and popularity
+			3. Store pricing strategies
+			4. Product availability patterns
+			5. Market opportunities
+			6. Competitive insights
+			7. Current prices for each product are below or above the average price (return one line for each product)
+			
+			Return as structured JSON analysis. Make sure to format string correctly. Always wrap key value within double quotes.
+		""".trimIndent()
 	}
 
 	companion object {
@@ -110,7 +163,7 @@ object LLMEvaluator {
 		}
 	}
 
-	private fun stripCodeFences(text: String): String {
+	fun stripCodeFences(text: String): String {
 		var t = text.trim()
 		if (t.startsWith("```")) {
 			// Remove opening fence and optional language tag
